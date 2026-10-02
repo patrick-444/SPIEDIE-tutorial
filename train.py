@@ -12,7 +12,7 @@ import os
 os.environ["KERAS_BACKEND"] = "torch"
 
 import argparse
-import json
+import csv
 from pathlib import Path
 
 import keras
@@ -61,6 +61,35 @@ def build_model(n_features: int, n_classes: int, learning_rate: float) -> keras.
     return model
 
 
+RESULT_COLUMNS = [
+    "model",
+    "dataset",
+    "backend",
+    "architecture",
+    "optimizer",
+    "learning_rate",
+    "epochs",
+    "batch_size",
+    "seed",
+    "n_samples",
+    "n_features",
+    "n_classes",
+    "train_loss",
+    "train_accuracy",
+    "val_loss",
+    "val_accuracy",
+    "test_loss",
+    "test_accuracy",
+]
+
+
+def write_results(path: Path, row: dict) -> None:
+    with path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=RESULT_COLUMNS)
+        writer.writeheader()
+        writer.writerow(row)
+
+
 def main() -> None:
     args = parse_args()
     keras.utils.set_random_seed(args.seed)
@@ -95,13 +124,14 @@ def main() -> None:
         flush=True,
     )
 
+    batch_size = 32
     model = build_model(x_train.shape[1], len(data.target_names), args.lr)
     history = model.fit(
         x_train,
         y_train,
         validation_data=(x_val, y_val),
         epochs=args.epochs,
-        batch_size=32,
+        batch_size=batch_size,
         verbose=0,
         callbacks=[EpochLogger()],
     )
@@ -110,30 +140,32 @@ def main() -> None:
     print(f"test loss: {test_loss:.4f}", flush=True)
     print(f"test accuracy: {test_accuracy:.4f}", flush=True)
 
-    summary = {
-        "dataset": "digits",
-        "backend": keras.backend.backend(),
-        "architecture": "Dense(64, relu) -> Dense(32, relu) -> Dense(10, softmax)",
-        "lr": args.lr,
-        "epochs": args.epochs,
-        "seed": args.seed,
-        "n_samples": int(data.data.shape[0]),
-        "n_features": int(data.data.shape[1]),
-        "n_classes": int(len(data.target_names)),
-        "test_loss": round(float(test_loss), 4),
-        "test_accuracy": round(float(test_accuracy), 4),
-    }
-    history_payload = {
-        key: [round(float(value), 4) for value in values]
-        for key, values in history.history.items()
-    }
-
-    metrics_path = results_dir / "metrics.json"
-    history_path = results_dir / "history.json"
-    metrics_path.write_text(json.dumps(summary, indent=2) + "\n")
-    history_path.write_text(json.dumps(history_payload, indent=2) + "\n")
-    print(f"Wrote {metrics_path}", flush=True)
-    print(f"Wrote {history_path}", flush=True)
+    final = history.history
+    results_path = results_dir / "results.csv"
+    write_results(
+        results_path,
+        {
+            "model": "feedforward_ann",
+            "dataset": "digits",
+            "backend": keras.backend.backend(),
+            "architecture": "Dense(64, relu) -> Dense(32, relu) -> Dense(10, softmax)",
+            "optimizer": "adam",
+            "learning_rate": args.lr,
+            "epochs": args.epochs,
+            "batch_size": batch_size,
+            "seed": args.seed,
+            "n_samples": int(data.data.shape[0]),
+            "n_features": int(data.data.shape[1]),
+            "n_classes": int(len(data.target_names)),
+            "train_loss": round(float(final["loss"][-1]), 4),
+            "train_accuracy": round(float(final["accuracy"][-1]), 4),
+            "val_loss": round(float(final["val_loss"][-1]), 4),
+            "val_accuracy": round(float(final["val_accuracy"][-1]), 4),
+            "test_loss": round(float(test_loss), 4),
+            "test_accuracy": round(float(test_accuracy), 4),
+        },
+    )
+    print(f"Wrote {results_path}", flush=True)
 
 
 if __name__ == "__main__":

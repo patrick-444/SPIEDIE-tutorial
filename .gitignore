@@ -4,6 +4,7 @@
 # Training outputs and scheduler logs
 results/*
 !results/.gitkeep
+!results/results.csv
 logs/*
 !logs/.gitkeep
 
