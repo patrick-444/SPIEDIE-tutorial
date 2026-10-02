@@ -1,0 +1,20 @@
+# Virtual environment
+.venv/
+
+# Training outputs and scheduler logs
+results/*
+!results/.gitkeep
+logs/*
+!logs/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+.DS_Store
