@@ -1,37 +1,33 @@
 #!/bin/bash
-# Submit this job from the project directory:
+# Submit from the project directory, after creating the log folder:
+#   mkdir -p logs
 #   sbatch run_spiedie.slurm
+#   sbatch run_spiedie.slurm 0.001 50 42
+#   sbatch run_spiedie.slurm 0.01 50 42
 #
-# Watch it with:
-#   squeue -u "USER"
-# Read the scheduler log after it finishes:
-#   cat logs/slurm-<jobid>.out
+# Watch it:
+#   squeue -u "$USER"
+#   tail -f logs/train_<jobid>.out
 
-#SBATCH --job-name=sklearn-demo
+#SBATCH --job-name=train
 #SBATCH --partition=Standard
-#SBATCH --time=00:10:00
-#SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
-#SBATCH --mem=4G
-#SBATCH --output=logs/slurm-%j.out
-#SBATCH --error=logs/slurm-%j.err
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=02:00:00
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 
 set -euo pipefail
 
-# sbatch starts in the directory where the job was submitted.
-mkdir -p logs results
+cd "${SLURM_SUBMIT_DIR}"
+mkdir -p results
 
-# Batch jobs do not inherit modules loaded in the login session.
+# Batch jobs do not inherit modules from the login session.
+# Activate the project environment the same way you would interactively.
 module load python
+source .venv/bin/activate
 
-if [[ ! -d .venv ]]; then
-    python3 -m venv .venv
-    source .venv/bin/activate
-    python -m pip install --upgrade pip
-    python -m pip install -r requirements.txt
-else
-    source .venv/bin/activate
-fi
+export KERAS_BACKEND=torch
 
-python train.py
+python -u train.py --lr "${1:-0.001}" --epochs "${2:-50}" --seed "${3:-42}"

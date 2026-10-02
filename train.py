@@ -1,24 +1,71 @@
-"""Train two classifiers on a small built-in dataset and save the scores.
+"""Train a small feedforward network on the digits dataset.
 
-The wine dataset ships with scikit-learn, so this script does not need a
-network connection when it runs on a compute node.
+Uses Keras with the PyTorch backend. The dataset ships with scikit-learn, so
+the job does not need a network connection on the compute node.
+
+Example:
+    python train.py --lr 0.001 --epochs 50 --seed 42
 """
 
+import os
+
+os.environ["KERAS_BACKEND"] = "torch"
+
+import argparse
 import json
 from pathlib import Path
 
+import keras
 from sklearn.datasets import load_digits
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Train a small ANN on the digits dataset (Keras, PyTorch backend)."
+    )
+    parser.add_argument("--lr", type=float, default=0.001, help="Adam learning rate")
+    parser.add_argument("--epochs", type=int, default=50, help="Number of training epochs")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    return parser.parse_args()
+
+
+class EpochLogger(keras.callbacks.Callback):
+    """Print one line per epoch so SLURM logs update while the job runs."""
+
+    def on_epoch_end(self, epoch, logs=None):
+        logs = logs or {}
+        print(
+            f"epoch {epoch + 1}/{self.params['epochs']} "
+            f"loss={logs['loss']:.4f} accuracy={logs['accuracy']:.4f} "
+            f"val_loss={logs['val_loss']:.4f} val_accuracy={logs['val_accuracy']:.4f}",
+            flush=True,
+        )
+
+
+def build_model(n_features: int, n_classes: int, learning_rate: float) -> keras.Model:
+    model = keras.Sequential(
+        [
+            keras.layers.Input(shape=(n_features,)),
+            keras.layers.Dense(64, activation="relu"),
+            keras.layers.Dense(32, activation="relu"),
+            keras.layers.Dense(n_classes, activation="softmax"),
+        ]
+    )
+    model.compile(
+        optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
+        loss="sparse_categorical_crossentropy",
+        metrics=["accuracy"],
+    )
+    return model
+
+
 def main() -> None:
-    project_dir = Path(__file__).resolve().parent
-    results_dir = project_dir / "results"
+    args = parse_args()
+    keras.utils.set_random_seed(args.seed)
+
+    results_dir = Path(__file__).resolve().parent / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
 
     data = load_digits()
@@ -26,46 +73,67 @@ def main() -> None:
         data.data,
         data.target,
         test_size=0.25,
-        random_state=0,
+        random_state=args.seed,
         stratify=data.target,
     )
+    x_train, x_val, y_train, y_val = train_test_split(
+        x_train,
+        y_train,
+        test_size=0.2,
+        random_state=args.seed,
+        stratify=y_train,
+    )
 
-    models = {
-        "logistic_regression": make_pipeline(
-            StandardScaler(),
-            LogisticRegression(max_iter=500),
-        ),
-        "random_forest": RandomForestClassifier(n_estimators=100, random_state=0),
-    }
+    scaler = StandardScaler()
+    x_train = scaler.fit_transform(x_train).astype("float32")
+    x_val = scaler.transform(x_val).astype("float32")
+    x_test = scaler.transform(x_test).astype("float32")
+
+    print(
+        f"backend={keras.backend.backend()} lr={args.lr} "
+        f"epochs={args.epochs} seed={args.seed}",
+        flush=True,
+    )
+
+    model = build_model(x_train.shape[1], len(data.target_names), args.lr)
+    history = model.fit(
+        x_train,
+        y_train,
+        validation_data=(x_val, y_val),
+        epochs=args.epochs,
+        batch_size=32,
+        verbose=0,
+        callbacks=[EpochLogger()],
+    )
+
+    test_loss, test_accuracy = model.evaluate(x_test, y_test, verbose=0)
+    print(f"test loss: {test_loss:.4f}", flush=True)
+    print(f"test accuracy: {test_accuracy:.4f}", flush=True)
 
     summary = {
         "dataset": "digits",
+        "backend": keras.backend.backend(),
+        "architecture": "Dense(64, relu) -> Dense(32, relu) -> Dense(10, softmax)",
+        "lr": args.lr,
+        "epochs": args.epochs,
+        "seed": args.seed,
         "n_samples": int(data.data.shape[0]),
         "n_features": int(data.data.shape[1]),
         "n_classes": int(len(data.target_names)),
-        "models": {},
+        "test_loss": round(float(test_loss), 4),
+        "test_accuracy": round(float(test_accuracy), 4),
     }
-    report_sections = []
-
-    for name, model in models.items():
-        model.fit(x_train, y_train)
-        predictions = model.predict(x_test)
-        accuracy = accuracy_score(y_test, predictions)
-        report = classification_report(
-            y_test,
-            predictions,
-            target_names=[str(name) for name in data.target_names],
-        )
-        summary["models"][name] = {"test_accuracy": round(float(accuracy), 4)}
-        report_sections.append(f"{name}\ntest accuracy: {accuracy:.4f}\n\n{report}")
-        print(f"{name}: test accuracy {accuracy:.4f}")
+    history_payload = {
+        key: [round(float(value), 4) for value in values]
+        for key, values in history.history.items()
+    }
 
     metrics_path = results_dir / "metrics.json"
-    report_path = results_dir / "classification_report.txt"
+    history_path = results_dir / "history.json"
     metrics_path.write_text(json.dumps(summary, indent=2) + "\n")
-    report_path.write_text("\n".join(report_sections))
-    print(f"Wrote {metrics_path}")
-    print(f"Wrote {report_path}")
+    history_path.write_text(json.dumps(history_payload, indent=2) + "\n")
+    print(f"Wrote {metrics_path}", flush=True)
+    print(f"Wrote {history_path}", flush=True)
 
 
 if __name__ == "__main__":
