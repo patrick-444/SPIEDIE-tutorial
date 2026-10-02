@@ -3,7 +3,7 @@
 #   sbatch run_spiedie.slurm
 #
 # Watch it with:
-#   squeue -u "$USER"
+#   squeue -u "USER"
 # Read the scheduler log after it finishes:
 #   cat logs/slurm-<jobid>.out
 
@@ -20,7 +20,6 @@
 set -euo pipefail
 
 # sbatch starts in the directory where the job was submitted.
-cd "${SLURM_SUBMIT_DIR}"
 mkdir -p logs results
 
 # Batch jobs do not inherit modules loaded in the login session.
