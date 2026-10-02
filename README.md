@@ -8,10 +8,12 @@ This guide walks through one job from start to finish: submitting a Python scrip
 
 ## Spiedie-Specific Notes
 
+**Software requirements.** You can use any terminal program that is ssh enabled to access SPIEDIE. This includes Powershell (Windows), Terminal (macOS), or any Linux distro.
+
 **Network access.** You must be connected to the Binghamton VPN or using an on-campus machine to reach Spiedie. If SSH hangs or times out, check your VPN first.
 
 ```bash
-ssh <netid>@<spiedie_head_node_hostname>
+ssh <netid>@<spiedie.binghamton.edu>
 ```
 
 **Git on the head node.** The head node has git read and write privileges, so you must authenticate via git before pushing or pulling changes. SSH keys are the preferred method. They take a one-time setup (next section), after which git works every time you log in.
@@ -20,9 +22,9 @@ ssh <netid>@<spiedie_head_node_hostname>
 
 ## Authenticating Git from Spiedie (One-Time SSH Setup)
 
-Do this once. Afterwards you log in to Spiedie with your username and password as usual, and `git pull` / `git push` just work. There's no agent to start, no key to load, and no token to paste.
+Do this once. Afterwards you log in to Spiedie with your username and password as usual, and `git pull` / `git push` just work. 
 
-Run everything below **on the Spiedie head node**, connected through the Binghamton VPN or from an on-campus machine. The examples use GitHub. For GitLab or another host, swap in its hostname and use its SSH key settings page.
+Run everything below **on the Spiedie head node** (do not change your working directory once you access SPIEDIE). 
 
 ### Step 1: Generate a key with no passphrase
 
@@ -144,7 +146,7 @@ git pull
 If it succeeds with no prompts, setup is complete. From now on the routine is:
 
 1. Connect to the VPN (or be on campus).
-2. `ssh <netid>@<spiedie_head_node_hostname>` and enter your password.
+2. `ssh <netid>@<spiedie.binghamton.edu>` and enter your password.
 3. Use `git pull` and `git push` freely.
 
 ### Setup troubleshooting
@@ -162,9 +164,9 @@ Keep large outputs, checkpoints, and logs out of git (use `.gitignore`).
 
 ---
 
-## 1. The Example: One Python Script with CLI Args
+## 1. An Example: Python Script with CLI Args
 
-Suppose you have `train.py` that takes three arguments:
+Suppose you have `train.py` that takes three arguments (see train.py):
 
 ```bash
 python train.py --lr 0.001 --epochs 50 --seed 42
