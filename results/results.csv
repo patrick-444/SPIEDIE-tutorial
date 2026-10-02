@@ -1,0 +1,2 @@
+model,dataset,backend,architecture,optimizer,learning_rate,epochs,batch_size,seed,n_samples,n_features,n_classes,train_loss,train_accuracy,val_loss,val_accuracy,test_loss,test_accuracy
+feedforward_ann,digits,torch,"Dense(64, relu) -> Dense(32, relu) -> Dense(10, softmax)",adam,0.001,50,32,42,1797,64,10,0.0016,1.0,0.0742,0.9778,0.1501,0.9667
